@@ -43,7 +43,7 @@ public class GraphGenMapper
                     Context context) throws IOException, InterruptedException {
         Integer fromVertex = rnd.nextInt((int) verticesNum);
         Integer toVertex = rnd.nextInt((int) verticesNum);
-        while (fromVertex.equals(toVertex)) toVertex = rnd.nextInt();
+        while (fromVertex.equals(toVertex)) toVertex = rnd.nextInt((int) verticesNum);
         List<String> result = new ArrayList<>();
         result.add(DDConstants.TYPE_EDGE_V);
         result.add(fromVertex.toString());
