@@ -50,9 +50,9 @@ public class EdgeMapper extends Mapper<Object, Text, Text, Text> {
      */
     @Override
     protected void map(Object key, Text value, Context context)
-            throws IOException, InterruptedException {
+            throws IOException {
         
-        List<String> tokens = new ArrayList<String>();
+        List<String> tokens = new ArrayList<>();
         StringTokenizer itr = new StringTokenizer(value.toString(), DDConstants.DELIMITER);
         String rToken       = null;
         while(itr.hasMoreTokens()) {
@@ -75,12 +75,12 @@ public class EdgeMapper extends Mapper<Object, Text, Text, Text> {
      * @throws IOException
      */
     protected void parse_edge(Context context, final List<String> tokens) throws IOException {
-        Map<String, Object> properties_map = new HashMap<String, Object>();
+        Map<String, Object> properties_map = new HashMap<>();
         try {
             // There may be multiple edges between a same pair of vertices with different label.
             String edge_label = null;
             for (int i = DDConstants.TO_VERTEX_I + 1; i < tokens.size(); i++) {
-                List<String> properties = new ArrayList<String>(Arrays.asList(tokens.get(i).split(DDConstants.SEPARATOR)));
+                List<String> properties = new ArrayList<>(Arrays.asList(tokens.get(i).split(DDConstants.SEPARATOR)));
                 if (DDConstants.EDGE_LABEL_K.equals(properties.get(DDConstants.PROPERTY_NAME_I))) {
                     edge_label = properties.get(DDConstants.PROPERTY_VALUE_I);
                     break;
@@ -98,7 +98,7 @@ public class EdgeMapper extends Mapper<Object, Text, Text, Text> {
             for (int i = DDConstants.TO_VERTEX_I + 1; i < tokens.size(); i++ ) {
                 properties_map.clear();
                 properties_map.put(DDConstants.INFO_TYPE_K, DDConstants.TYPE_EDGE_V);
-                List<String> properties = new ArrayList<String>(Arrays.asList(tokens.get(i).split(DDConstants.SEPARATOR)));
+                List<String> properties = new ArrayList<>(Arrays.asList(tokens.get(i).split(DDConstants.SEPARATOR)));
 
                 properties_map.put(properties.get(DDConstants.PROPERTY_NAME_I), properties.get(DDConstants.PROPERTY_VALUE_I));
                 context.write(new Text(key), new Text(JSON.toJSONString(properties_map)));
@@ -115,14 +115,14 @@ public class EdgeMapper extends Mapper<Object, Text, Text, Text> {
      * @throws IOException
      */
     protected void parse_vertex(Context context, final List<String> tokens) throws IOException {
-        Map<String, Map<String, Object>> properties_map = new HashMap<String, Map<String, Object>>();
+        Map<String, Map<String, Object>> properties_map = new HashMap<>();
         try {
             final String key = tokens.get(DDConstants.FROM_VERTEX_I);
             
-            properties_map.put(DDConstants.INFO_TYPE_K, new HashMap<String, Object>());
+            properties_map.put(DDConstants.INFO_TYPE_K, new HashMap<>());
             properties_map.get(DDConstants.INFO_TYPE_K).put(DDConstants.PROPERTY_VALUE, DDConstants.TYPE_VERTEX_V);
             
-            properties_map.put(DDConstants.FROM_VERTEX_K, new HashMap<String, Object>());
+            properties_map.put(DDConstants.FROM_VERTEX_K, new HashMap<>());
             properties_map.get(DDConstants.FROM_VERTEX_K).put(DDConstants.PROPERTY_VALUE, tokens.get(DDConstants.FROM_VERTEX_I));
             
             context.write(new Text(key), new Text(JSON.toJSONString(properties_map)));
@@ -131,13 +131,13 @@ public class EdgeMapper extends Mapper<Object, Text, Text, Text> {
             // so we have to emit each property key-value pair separately.
             for (int i = DDConstants.FROM_VERTEX_I + 1; i < tokens.size(); i++) {
                 properties_map.clear();
-                properties_map.put(DDConstants.INFO_TYPE_K, new HashMap<String, Object>());
+                properties_map.put(DDConstants.INFO_TYPE_K, new HashMap<>());
                 properties_map.get(DDConstants.INFO_TYPE_K).put(DDConstants.PROPERTY_VALUE, DDConstants.TYPE_VERTEX_V);
                 
-                List<String> properties = new ArrayList<String>(Arrays.asList(tokens.get(i).split(DDConstants.SEPARATOR)));
+                List<String> properties = new ArrayList<>(Arrays.asList(tokens.get(i).split(DDConstants.SEPARATOR)));
 
                 String property_name = properties.get(DDConstants.PROPERTY_NAME_I);
-                properties_map.put(property_name, new HashMap<String, Object>());
+                properties_map.put(property_name, new HashMap<>());
                 properties_map.get(property_name).put(DDConstants.PROPERTY_VALUE, properties.get(DDConstants.PROPERTY_VALUE_I));
                 // meta-property key value pair.
                 for (int j = DDConstants.PROPERTY_VALUE_I + 1; j < properties.size(); j += 2) {

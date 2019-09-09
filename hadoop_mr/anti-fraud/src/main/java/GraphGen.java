@@ -1,4 +1,6 @@
 
+import com.wegraph.tools.generator.GraphGenMapper;
+import com.wegraph.tools.generator.RangeInputFormat;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
@@ -9,12 +11,7 @@ import org.apache.hadoop.util.GenericOptionsParser;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
 
 /**
  * Generate a Erdos-Rendy random graph.
@@ -37,161 +34,37 @@ public class GraphGen extends Configured implements Tool {
 
     public static final String NUM_ROWS = "mapreduce.graphgen.num-rows";
     public static final String NUM_SPLITS = "mapreduce.graphgen.num-splits";
-    public static final String NUM_MAPS = "mapreduce.job.maps";
     public static final String NUM_REDUCES = "mapreduce.job.reduces";
+    public static final String NUM_MAPS = "mapreduce.job.maps";
+
+    public static final String NUM_VERTICES = "graphgen.num-vertices";
+    public static final String NUM_EDGES = "graphgen.num-edges";
     /**
      * An input format that assigns ranges of longs to each mapper.
      */
-    static class RangeInputFormat extends InputFormat<LongWritable, NullWritable> {
-
-        /**
-         * An input split consisting of a range on numbers.
-         */
-        static class RangeInputSplit extends InputSplit implements Writable {
-            long firstRow;
-            long rowCount;
-
-            public RangeInputSplit() {
-            }
-
-            public RangeInputSplit(long offset, long length) {
-                firstRow = offset;
-                rowCount = length;
-            }
-
-            public long getLength() {
-                return 0;
-            }
-
-            public String[] getLocations() {
-                return new String[]{};
-            }
-
-            public void readFields(DataInput in) throws IOException {
-                firstRow = WritableUtils.readVLong(in);
-                rowCount = WritableUtils.readVLong(in);
-            }
-
-            public void write(DataOutput out) throws IOException {
-                WritableUtils.writeVLong(out, firstRow);
-                WritableUtils.writeVLong(out, rowCount);
-            }
-        }
-
-        /**
-         * A record reader that will generate a range of numbers.
-         */
-        static class RangeRecordReader extends RecordReader<LongWritable, NullWritable> {
-            long startRow;
-            long finishedRows;
-            long totalRows;
-            LongWritable key = null;
-
-            public RangeRecordReader() {
-            }
-
-            public void initialize(InputSplit split, TaskAttemptContext context) {
-                startRow = ((RangeInputSplit) split).firstRow;
-                finishedRows = 0;
-                totalRows = ((RangeInputSplit) split).rowCount;
-            }
-
-            public void close() {
-                // NOTHING
-            }
-
-            public LongWritable getCurrentKey() {
-                return key;
-            }
-
-            public NullWritable getCurrentValue() {
-                return NullWritable.get();
-            }
-
-            public float getProgress() {
-                return finishedRows / (float) totalRows;
-            }
-
-            public boolean nextKeyValue() {
-                if (key == null) {
-                    key = new LongWritable();
-                }
-                if (finishedRows < totalRows) {
-                    key.set(startRow + finishedRows);
-                    finishedRows += 1;
-                    return true;
-                } else {
-                    return false;
-                }
-            }
-
-        }
-
-        public RecordReader<LongWritable, NullWritable>
-        createRecordReader(InputSplit split, TaskAttemptContext context) {
-            return new RangeRecordReader();
-        }
-
-        /**
-         * Create the desired number of splits, dividing the number of rows
-         * between the mappers.
-         */
-        public List<InputSplit> getSplits(JobContext job) {
-            long totalRows = getNumberOfRows(job);
-            long numSplits = getNumberOfSplits(job);
-//            LOG.info("Generating " + totalRows + " using " + numSplits);
-            List<InputSplit> splits = new ArrayList<>();
-            long currentRow = 0;
-            for (int split = 0; split < numSplits; ++split) {
-                long goal = (long) Math.ceil(totalRows * (double) (split + 1) / numSplits);
-                splits.add(new RangeInputSplit(currentRow, goal - currentRow));
-                currentRow = goal;
-            }
-            return splits;
-        }
-
-    }
-
-    static long getNumberOfRows(JobContext job) {
-        return job.getConfiguration().getLong(NUM_ROWS, 0);
-    }
 
     static void setNumberOfRows(Job job, long numRows) {
         job.getConfiguration().setLong(NUM_ROWS, numRows);
     }
 
     static void setNumberOfSplits(Job job, long numSplits) {
-        job.getConfiguration().setLong(NUM_SPLITS, numSplits);
+        if (job.getConfiguration().getLong(NUM_SPLITS, 0) > 0) {
+            // NOTHING
+        } else {
+            job.getConfiguration().setLong(NUM_SPLITS, numSplits);
+        }
     }
 
-    static long getNumberOfSplits(JobContext job) {
-        return job.getConfiguration().getLong(NUM_SPLITS, 1);
+    static void setNumVertices(Job job, long numVertices) {
+        job.getConfiguration().setLong(NUM_VERTICES, numVertices);
     }
-    /**
-     * The Mapper class that given a row number, will generate the appropriate
-     * output line.
-     */
-    public static class GraphGenMappper
-            extends Mapper<LongWritable, NullWritable, LongWritable, LongWritable> {
 
-        private Random rnd = null;
-
-        public void map(LongWritable row, NullWritable ignored,
-                        Context context) throws IOException, InterruptedException {
-            if (null == rnd) {
-                rnd = new Random();
-            }
-            context.write(new LongWritable(rnd.nextInt()), row);
-        }
-
-        @Override
-        public void cleanup(Context context) {
-            ;
-        }
+    static long computeNumOfRows(long numVertices, long numEdges) {
+        return (long) (numEdges + Math.pow(numEdges / (numVertices * 1.41421256), 2.0));
     }
 
     private static void usage() {
-        System.err.println("GraphGenerator <num rows> <output dir>");
+        System.err.println("GraphGenerator <num vertices> <num edges> <output dir>");
     }
 
     /**
@@ -230,22 +103,24 @@ public class GraphGen extends Configured implements Tool {
     public int run(String[] args)
             throws IOException, InterruptedException, ClassNotFoundException {
         Job job = Job.getInstance(getConf());
-        if (args.length != 2) {
+        if (args.length != 3) {
             usage();
-            return 2;
+            return 3;
         }
-        setNumberOfRows(job, parseHumanLong(args[0]));
+        setNumVertices(job, parseHumanLong(args[0]));
+        setNumberOfRows(job, computeNumOfRows(parseHumanLong(args[0]), parseHumanLong(args[1])));
         setNumberOfSplits(job, job.getConfiguration().getInt(NUM_MAPS, 1));
-        Path outputDir = new Path(args[1]);
+        Path outputDir = new Path(args[2]);
         FileOutputFormat.setOutputPath(job, outputDir);
         job.setJobName("GraphGenerator");
-        job.setMapperClass(GraphGenMappper.class);
-//        job.setNumReduceTasks(job.getConfiguration().getInt(NUM_REDUCES, 100));
-        job.setNumReduceTasks(0);
-        job.setOutputKeyClass(LongWritable.class);
-        job.setOutputValueClass(LongWritable.class);
+        job.setMapperClass(GraphGenMapper.class);
+//        job.setReducerClass(GraphGenReducer.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(NullWritable.class);
+//        job.setOutputKeyClass(LongWritable.class);
+//        job.setOutputValueClass(LongWritable.class);
         job.setInputFormatClass(RangeInputFormat.class);
-//        job.setOutputFormatClass(TextOutputFormat.class);
+//        job.setNumReduceTasks(job.getConfiguration().getInt(NUM_REDUCES, 100));
         return job.waitForCompletion(true) ? 0 : 1;
     }
 
@@ -254,43 +129,3 @@ public class GraphGen extends Configured implements Tool {
         System.exit(res);
     }
 }
-//public class GraphGenerator extends Configured implements Tool {
-//    @Override
-//    public int run(String[] args) throws Exception {
-//
-//        Job job = Job.getInstance(getConf());
-//        Configuration conf = job.getConfiguration();
-//        String[] otherArgs = new GenericOptionsParser(conf, args)
-//            .getRemainingArgs();
-//        if (otherArgs.length < 3) {
-//            System.err.println("Usage: DataDecompress <reducer_number> <output path> [<input path>]");
-//            return -1;
-//        }
-//        Path out_path = new Path(otherArgs[1]);
-//        FileOutputFormat.setOutputPath(job, out_path);
-//        for (int i=2; i<otherArgs.length; ++i) {
-//            MultipleInputs.addInputPath(job, new Path(otherArgs[i]), TextInputFormat.class);
-//        }
-//
-//        if (Integer.parseInt(otherArgs[0]) > 0) {
-//            job.setMapperClass(IdentityMapper.class);
-//            job.setReducerClass(IdentityReducer.class);
-//            job.setMapOutputKeyClass(Text.class);
-//            job.setMapOutputValueClass(NullWritable.class);
-//            job.setOutputKeyClass(NullWritable.class);
-//            job.setOutputValueClass(Text.class);
-//        } else {
-//            job.setMapperClass(IdentityMapper.class);
-//        }
-//        job.setNumReduceTasks(Integer.parseInt(otherArgs[0]));
-//
-//        return job.waitForCompletion(true) ? 0 : 1;
-//    }
-//
-//    public static void main(String[] args) throws Exception {
-//        Configuration conf = new Configuration();
-//        int res = ToolRunner.run(conf, new GraphGenerator(), args);
-//        System.exit(res);
-//    }
-//
-//}

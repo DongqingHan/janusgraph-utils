@@ -79,6 +79,9 @@ public  class EdgeReducer extends Reducer<Text, Text, NullWritable, Text> {
                     case "p_e_calls_total_duration":
                         result_map.put(property_name, maximum_integer((Integer) result_map.get(property_name), Integer.parseInt((String) property_value)));
                         break;
+                    case "p_e_weight":
+                        result_map.put(property_name, sum_weight((Integer) result_map.get(property_name), Integer.parseInt((String) property_value)));
+                        break;
                     default:
                         throw new IOException(vl.toString());
                     }
@@ -229,6 +232,13 @@ public  class EdgeReducer extends Reducer<Text, Text, NullWritable, Text> {
             List<Map<String, Object>> result = new ArrayList<>();
             result.add(property_value);
             return result;
+        }
+    }
+    private Integer sum_weight(Integer part_result, Integer property_value) {
+        if (part_result != null) {
+            return part_result + property_value;
+        } else {
+            return property_value;
         }
     }
 }
